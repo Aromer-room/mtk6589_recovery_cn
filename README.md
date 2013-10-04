@@ -1,8 +1,7 @@
-android_bootable_recovery
+android_bootable_recovery_cn
 =========================
 
-基于cm源码修改，汉化
+the android_bootable_recovery_cn base 6.0.3.8
+this code not working now
+I will modify source code until it works fine on mt6589
 
-定义：
-BOARD_USE_CUSTOM_RECOVERY_FONT := \"fontcn46_25x73.h\"
-自动使用graphics_cn.c编译。
