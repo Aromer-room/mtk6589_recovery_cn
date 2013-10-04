@@ -33,7 +33,6 @@
 #include <cutils/properties.h>
 #include "minui/minui.h"
 #include "recovery_ui.h"
-#include "voldclient/voldclient.h"
 
 extern int __system(const char *command);
 
@@ -44,7 +43,7 @@ static int gShowBackButton = 0;
 #endif
 
 #define MAX_COLS 96
-#define MAX_ROWS 32
+#define MAX_ROWS 50
 
 #define MENU_MAX_COLS 64
 #define MENU_MAX_ROWS 250
@@ -52,7 +51,7 @@ static int gShowBackButton = 0;
 #define MIN_LOG_ROWS 3
 
 #define CHAR_WIDTH BOARD_RECOVERY_CHAR_WIDTH
-#define CHAR_HEIGHT BOARD_RECOVERY_CHAR_HEIGHT
+#define CHAR_HEIGHT (BOARD_RECOVERY_CHAR_HEIGHT+10)
 
 #define UI_WAIT_KEY_TIMEOUT_SEC    3600
 #define UI_KEY_REPEAT_INTERVAL 80
@@ -83,7 +82,6 @@ static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
     { &gBackgroundIcon[BACKGROUND_ICON_INSTALLING], "icon_installing" },
     { &gBackgroundIcon[BACKGROUND_ICON_ERROR],      "icon_error" },
     { &gBackgroundIcon[BACKGROUND_ICON_CLOCKWORK],  "icon_clockwork" },
-    { &gBackgroundIcon[BACKGROUND_ICON_CID],  "icon_cid" },
     { &gBackgroundIcon[BACKGROUND_ICON_FIRMWARE_INSTALLING], "icon_firmware_install" },
     { &gBackgroundIcon[BACKGROUND_ICON_FIRMWARE_ERROR], "icon_firmware_error" },
     { &gProgressBarEmpty,               "progress_empty" },
@@ -258,8 +256,8 @@ static void draw_text_line(int row, const char* t, int align) {
                 col = gr_fb_width() - length - 1;
                 break;
         }
-        gr_text(col, (row+1)*CHAR_HEIGHT-1, t);
-		//gr_text(col, (row+1)*CHAR_HEIGHT-(CHAR_HEIGHT-BOARD_RECOVERY_CHAR_HEIGHT)/2-1, t);
+        //gr_text(col, (row+1)*CHAR_HEIGHT-1, t);
+		gr_text(col, (row+1)*CHAR_HEIGHT-(CHAR_HEIGHT-BOARD_RECOVERY_CHAR_HEIGHT)/2-1, t);
     }
 }
 
@@ -283,7 +281,7 @@ static void draw_screen_locked(void)
         // gr_fill(0, 0, gr_fb_width(), gr_fb_height());
 
         gr_surface surface = gVirtualKeys;
-        int total_rows = (gr_fb_height() - gr_get_height(surface)) / CHAR_HEIGHT;
+        int total_rows = (gr_fb_height() / CHAR_HEIGHT) - (gr_get_height(surface) / CHAR_HEIGHT);
         int i = 0;
         int j = 0;
         int row = 0;            // current row that we are drawing on
@@ -306,7 +304,7 @@ static void draw_screen_locked(void)
             //sprintf(batt_text, "[%d%% %02D:%02D]", batt_level, current->tm_hour, current->tm_min);
             
             //if (now == NULL) { // just in case
-				sprintf(batt_text, " [%d%%]", batt_level);
+				sprintf(batt_text, "[%d%%]", batt_level);
 			//}
 
             gr_color(MENU_TEXT_COLOR);
@@ -558,7 +556,7 @@ static int input_callback(int fd, short revents, void *data)
 				if(old_x == 0) break; 
 				diff_x += touch_x - old_x;
 				//if(touch_y < (gr_fb_height() - gr_get_height(surface))) {
-					int diff_w=gr_fb_width()/4;
+					int diff_w=gr_fb_width()/5;
 					if(diff_x > diff_w) {
 						slide_right = 1;
 						reset_gestures();
@@ -639,7 +637,6 @@ static int input_callback(int fd, short revents, void *data)
     }
 
     if (ev.value > 0 && device_reboot_now(key_pressed, ev.code)) {
-        vold_unmount_all();
         android_reboot(ANDROID_RB_RESTART, 0, 0);
     }
 
@@ -664,11 +661,12 @@ void ui_init(void)
 
     gr_surface surface = gVirtualKeys;
     text_col = text_row = 0;
-    text_rows = (gr_fb_height() - gr_get_height(surface)) / CHAR_HEIGHT;
+    text_rows = gr_fb_height() / CHAR_HEIGHT;
     max_menu_rows = text_rows - MIN_LOG_ROWS;
     if (max_menu_rows > MENU_MAX_ROWS)
         max_menu_rows = MENU_MAX_ROWS;
     if (text_rows > MAX_ROWS) text_rows = MAX_ROWS;
+    text_rows = text_rows - (gr_get_height(surface) / CHAR_HEIGHT) - 1;
     text_top = 1;
 
     text_cols = gr_fb_width() / CHAR_WIDTH;
@@ -872,20 +870,8 @@ void ui_print(const char *fmt, ...)
     gettimeofday(&lastupdate, NULL);
     if (text_rows > 0 && text_cols > 0) {
         char *ptr;
-#ifdef USE_CHINESE_FONT
-		int fwidth = 0, fwidth_sum = 0;
-#endif
         for (ptr = buf; *ptr != '\0'; ++ptr) {
-#ifdef USE_CHINESE_FONT
-			fwidth = gr_measure(&*ptr);
-			//LOGI("%d \n", fwidth);
-			fwidth_sum += fwidth;
-
-            if (*ptr == '\n' || fwidth_sum >= gr_fb_width()) {
-				fwidth_sum = 0;
-#else
             if (*ptr == '\n' || text_col >= text_cols) {
-#endif
                 text[text_row][text_col] = '\0';
                 text_col = 0;
                 text_row = (text_row + 1) % text_rows;
@@ -924,18 +910,16 @@ void ui_printlogtail(int nb_lines) {
 #define MENU_ITEM_HEADER " > "
 #define MENU_ITEM_HEADER_LENGTH strlen(MENU_ITEM_HEADER)
 
-int ui_start_menu(const char** headers, char** items, int initial_selection) {
+int ui_start_menu(char** headers, char** items, int initial_selection) {
     int i;
     pthread_mutex_lock(&gUpdateMutex);
     if (text_rows > 0 && text_cols > 0) {
         for (i = 0; i < text_rows; ++i) {
             if (headers[i] == NULL) break;
-#ifdef USE_CHINESE_FONT
-            strncpy(menu[i], headers[i], sizeof(menu[i]));
-#else
             strncpy(menu[i], headers[i], text_cols-1);
             menu[i][text_cols-1] = '\0';
-#endif
+            //strncpy(menu[i], headers[i], MAX_COLS-1);
+            //menu[i][MAX_COLS-1] = '\0';
         }
         menu_top = i;
         for (; i < MENU_MAX_ROWS; ++i) {
@@ -946,11 +930,7 @@ int ui_start_menu(const char** headers, char** items, int initial_selection) {
         }
 
         if (gShowBackButton && !ui_root_menu) {
-#ifdef USE_CHINESE_FONT
-            strcpy(menu[i], " < 返回");
-#else
             strcpy(menu[i], " < Go Back");
-#endif
             ++i;
         }
 
@@ -1055,35 +1035,27 @@ void ui_cancel_wait_key() {
     pthread_mutex_unlock(&key_queue_mutex);
 }
 
-extern int volumes_changed();
-
 int ui_wait_key()
 {
     if (boardEnableKeyRepeat) return ui_wait_key_with_repeat();
     pthread_mutex_lock(&key_queue_mutex);
-    int timeouts = UI_WAIT_KEY_TIMEOUT_SEC;
 
-    // Time out after 1 second to catch volume changes, and loop for
-    // UI_WAIT_KEY_TIMEOUT_SEC to restart a device not connected to USB
+    // Time out after UI_WAIT_KEY_TIMEOUT_SEC, unless a USB cable is
+    // plugged in.
     do {
         struct timeval now;
         struct timespec timeout;
         gettimeofday(&now, NULL);
         timeout.tv_sec = now.tv_sec;
         timeout.tv_nsec = now.tv_usec * 1000;
-        timeout.tv_sec += 1;
+        timeout.tv_sec += UI_WAIT_KEY_TIMEOUT_SEC;
 
         int rc = 0;
         while (key_queue_len == 0 && rc != ETIMEDOUT) {
             rc = pthread_cond_timedwait(&key_queue_cond, &key_queue_mutex,
                                         &timeout);
-            if (volumes_changed()) {
-                pthread_mutex_unlock(&key_queue_mutex);
-                return REFRESH;
-            }
         }
-        timeouts--;
-    } while ((timeouts || usb_connected()) && key_queue_len == 0);
+    } while (usb_connected() && key_queue_len == 0);
 
     int key = -1;
     if (key_queue_len > 0) {
@@ -1127,7 +1099,7 @@ int ui_wait_key_with_repeat()
                                         &timeout);
         }
         pthread_mutex_unlock(&key_queue_mutex);
-        if (rc == ETIMEDOUT && !usb_connected() && !volumes_changed()) {
+        if (rc == ETIMEDOUT && !usb_connected()) {
             return -1;
         }
 

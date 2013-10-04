@@ -33,7 +33,6 @@
 #include <cutils/properties.h>
 #include "minui/minui.h"
 #include "recovery_ui.h"
-#include "voldclient/voldclient.h"
 
 extern int __system(const char *command);
 
@@ -82,7 +81,6 @@ static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
     { &gBackgroundIcon[BACKGROUND_ICON_INSTALLING], "icon_installing" },
     { &gBackgroundIcon[BACKGROUND_ICON_ERROR],      "icon_error" },
     { &gBackgroundIcon[BACKGROUND_ICON_CLOCKWORK],  "icon_clockwork" },
-    { &gBackgroundIcon[BACKGROUND_ICON_CID],  "icon_cid" },
     { &gBackgroundIcon[BACKGROUND_ICON_FIRMWARE_INSTALLING], "icon_firmware_install" },
     { &gBackgroundIcon[BACKGROUND_ICON_FIRMWARE_ERROR], "icon_firmware_error" },
     { &gProgressBarEmpty,               "progress_empty" },
@@ -130,7 +128,7 @@ static volatile char key_pressed[KEY_MAX + 1];
 static void update_screen_locked(void);
 
 #ifdef BOARD_TOUCH_RECOVERY
-#include "ui_touch.c"
+#include "../../vendor/koush/recovery/touch.c"
 #endif
 
 // Return the current time as a double (including fractions of a second).
@@ -467,7 +465,6 @@ static int input_callback(int fd, short revents, void *data)
     }
 
     if (ev.value > 0 && device_reboot_now(key_pressed, ev.code)) {
-        vold_unmount_all();
         android_reboot(ANDROID_RB_RESTART, 0, 0);
     }
 
@@ -745,7 +742,7 @@ void ui_printlogtail(int nb_lines) {
 #define MENU_ITEM_HEADER " - "
 #define MENU_ITEM_HEADER_LENGTH strlen(MENU_ITEM_HEADER)
 
-int ui_start_menu(const char** headers, char** items, int initial_selection) {
+int ui_start_menu(char** headers, char** items, int initial_selection) {
     int i;
     pthread_mutex_lock(&gUpdateMutex);
     if (text_rows > 0 && text_cols > 0) {
@@ -763,7 +760,7 @@ int ui_start_menu(const char** headers, char** items, int initial_selection) {
         }
 
         if (gShowBackButton && !ui_root_menu) {
-            strcpy(menu[i], " - +++++Go Back+++++");
+            strcpy(menu[i], " - ----返回上级菜单----");
             ++i;
         }
 
@@ -845,7 +842,7 @@ void ui_show_text(int visible)
 static int usb_connected() {
     int fd = open("/sys/class/android_usb/android0/state", O_RDONLY);
     if (fd < 0) {
-        printf("failed to open /sys/class/android_usb/android0/state: %s\n",
+        printf("打开下列文件失败 /sys/class/android_usb/android0/state: %s\n",
                strerror(errno));
         return 0;
     }
@@ -854,7 +851,7 @@ static int usb_connected() {
     /* USB is connected if android_usb state is CONNECTED or CONFIGURED */
     int connected = (read(fd, &buf, 1) == 1) && (buf == 'C');
     if (close(fd) < 0) {
-        printf("failed to close /sys/class/android_usb/android0/state: %s\n",
+        printf("关闭下列文件失败 /sys/class/android_usb/android0/state: %s\n",
                strerror(errno));
     }
     return connected;
@@ -868,35 +865,27 @@ void ui_cancel_wait_key() {
     pthread_mutex_unlock(&key_queue_mutex);
 }
 
-extern int volumes_changed();
-
 int ui_wait_key()
 {
     if (boardEnableKeyRepeat) return ui_wait_key_with_repeat();
     pthread_mutex_lock(&key_queue_mutex);
-    int timeouts = UI_WAIT_KEY_TIMEOUT_SEC;
 
-    // Time out after 1 second to catch volume changes, and loop for
-    // UI_WAIT_KEY_TIMEOUT_SEC to restart a device not connected to USB
+    // Time out after UI_WAIT_KEY_TIMEOUT_SEC, unless a USB cable is
+    // plugged in.
     do {
         struct timeval now;
         struct timespec timeout;
         gettimeofday(&now, NULL);
         timeout.tv_sec = now.tv_sec;
         timeout.tv_nsec = now.tv_usec * 1000;
-        timeout.tv_sec += 1;
+        timeout.tv_sec += UI_WAIT_KEY_TIMEOUT_SEC;
 
         int rc = 0;
         while (key_queue_len == 0 && rc != ETIMEDOUT) {
             rc = pthread_cond_timedwait(&key_queue_cond, &key_queue_mutex,
                                         &timeout);
-            if (volumes_changed()) {
-                pthread_mutex_unlock(&key_queue_mutex);
-                return REFRESH;
-            }
         }
-        timeouts--;
-    } while ((timeouts || usb_connected()) && key_queue_len == 0);
+    } while (usb_connected() && key_queue_len == 0);
 
     int key = -1;
     if (key_queue_len > 0) {
@@ -940,7 +929,7 @@ int ui_wait_key_with_repeat()
                                         &timeout);
         }
         pthread_mutex_unlock(&key_queue_mutex);
-        if (rc == ETIMEDOUT && !usb_connected() && !volumes_changed()) {
+        if (rc == ETIMEDOUT && !usb_connected()) {
             return -1;
         }
 

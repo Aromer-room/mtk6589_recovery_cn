@@ -69,5 +69,4 @@ void ev_dispatch(void);
 int res_create_surface(const char* name, gr_surface* pSurface);
 void res_free_surface(gr_surface surface);
 
-int vibrate(int timeout_ms);
 #endif

@@ -71,20 +71,23 @@ int device_wipe_data();
 #define HIGHLIGHT_DOWN      -3
 #define SELECT_ITEM         -4
 #define GO_BACK             -5
-#define REFRESH             -6
 
 #define ITEM_REBOOT          0
 #define ITEM_APPLY_EXT       1
 #define ITEM_APPLY_SDCARD    1  // historical synonym for ITEM_APPLY_EXT
-#define ITEM_APPLY_ZIP       1  // used for installing an update from a zip
-#define ITEM_WIPE_DATA       2
-#define ITEM_WIPE_CACHE      3
+#define ITEM_APPLY_SIDELOAD  2
+#define ITEM_WIPE_DATA       3
+#define ITEM_WIPE_CACHE      4
 // unused in cwr
 #define ITEM_APPLY_CACHE     4
-#define ITEM_NANDROID        4
-#define ITEM_PARTITION       5
-#define ITEM_ADVANCED        6
-#define VIBRATOR_TIME_MS     30
+#define ITEM_NANDROID        5
+#define ITEM_PARTITION       6
+#define ITEM_ADVANCED        7
+// 激活关机选项
+#define ITEM_POWEROFF        8
+// 添加一键刷机
+#define ITEM_GUOHOWFLASH        9
+#define ITEM_GUOHOWHELP        10
 
 // Header text to display above the main menu.
 extern char* MENU_HEADERS[];
@@ -96,13 +99,11 @@ extern char* MENU_ITEMS[];
 extern int ui_root_menu;
 
 int
-get_menu_selection(const char** headers, char** items, int menu_only, int initial_selection);
+get_menu_selection(char** headers, char** items, int menu_only, int initial_selection);
 
 void
 set_sdcard_update_bootloader_message();
 
 extern int ui_handle_key(int key, int visible);
 
-// call a clean reboot
-void reboot_main_system(int cmd, int flags, char *arg);
 #endif

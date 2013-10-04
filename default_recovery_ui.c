@@ -20,26 +20,21 @@
 #include "common.h"
 #include "extendedcommands.h"
 
-char* MENU_HEADERS[] = { NULL };
-#ifndef USE_CHINESE_FONT
-char* MENU_ITEMS[] = { "reboot system now",
-                       "install zip",
-                       "wipe data/factory reset",
-                       "wipe cache partition",
-                       "backup and restore",
-                       "mounts and storage",
-                       "advanced",
-                       NULL };
-#else
-char* MENU_ITEMS[] = { "重启设备",
-                       "安装ZIP刷机包",
-                       "清除数据恢复出厂",
-                       "清除Cache分区",
-                       "备份和还原备份",
-                       "挂载和大容量储存",
+char* MENU_HEADERS[] = { "音量上下键选择，电源键确定"};
+
+char* MENU_ITEMS[] = { "重启手机",
+                       "选择内存卡上的ZIP刷机包",
+                       "使用adb sideload模式刷机",
+                       "清除数据/恢复出厂设置",
+                       "清除数据缓存",
+                       "系统备份与恢复",
+                       "分区格式化与挂载",
                        "高级选项",
+                       "关闭手机",
+                       "一键刷机模式",
+                       "一键刷机说明",
                        NULL };
-#endif
+
 void device_ui_init(UIParameters* ui_parameters) {
 }
 

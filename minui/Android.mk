@@ -1,15 +1,11 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES := events.c resources.c
+LOCAL_SRC_FILES := events.c resources.c chinese.c
 ifneq ($(BOARD_CUSTOM_GRAPHICS),)
   LOCAL_SRC_FILES += $(BOARD_CUSTOM_GRAPHICS)
 else
-  ifeq ($(findstring fontcn,$(BOARD_USE_CUSTOM_RECOVERY_FONT)),fontcn)
-    LOCAL_SRC_FILES += graphics_cn.c
-  else
-    LOCAL_SRC_FILES += graphics.c
-  endif
+  LOCAL_SRC_FILES += graphics.c
 endif
 
 LOCAL_C_INCLUDES +=\
@@ -37,12 +33,6 @@ endif
 
 ifneq ($(BOARD_USE_CUSTOM_RECOVERY_FONT),)
   LOCAL_CFLAGS += -DBOARD_USE_CUSTOM_RECOVERY_FONT=$(BOARD_USE_CUSTOM_RECOVERY_FONT)
-endif
-
-# Some devices need kernel headers for graphics
-ifeq ($(TARGET_PREBUILT_KERNEL),)
-  LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
-  LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 endif
 
 include $(BUILD_STATIC_LIBRARY)
